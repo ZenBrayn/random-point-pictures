@@ -11,17 +11,29 @@ function setup() {
 
   // Setup the logging table
   log_table = new p5.Table();
-
   log_table.addColumn('frame_count');
   log_table.addColumn('num_points');
   log_table.addColumn('img_diff');
+  log_table.addColumn('max_pt_size');
 
+  // drawing params
   save_imgs_log = false;
+
+  // points start off with the max size
+  init_max_size = 100;
+  // don't allow points to get smaller than this
+  min_allowable_size = 5;
+  // if requested, decrement max size
+  // every interval steps
+  // by dec amount
+  do_size_dec = true;
+  size_dec_interval = 2000;
+  size_dec = 5;
 }
 
 //--- Main drawing function
 function draw() {
-  drawColorSip();
+  drawColorSip(init_max_size, min_allowable_size, do_size_dec, size_dec_interval, size_dec);
 
   if (save_imgs_log) {
     if (color_points.length % 100 == 0) {
@@ -31,7 +43,7 @@ function draw() {
   }
 }
 
-function drawColorSip() {
+function drawColorSip(init_max_size, min_size, do_dec, dec_intr, dec_size) {
   // // First display the current color point
   // // state and compute the image difference
   background(255);
@@ -44,7 +56,18 @@ function drawColorSip() {
   // Get a random position and size, but "sip"
   // the color from the image
   pt.assignRandomPosition();
-  pt.assignRandomSize();
+
+  // Set the intervals on the point sizes
+  // and decrement if requested
+  var max_size = init_max_size;
+  if (do_dec) {
+    max_size = init_max_size - Math.floor(frameCount / dec_intr) * dec_size;
+    if (max_size < min_size) {
+      max_size = min_size;
+    }
+  }
+  pt.assignRandomSize(min_size, max_size);
+
   pt.assignColor(color(imgPixelColor(Math.round(pt.x), Math.round(pt.y), img)));
   color_points.push(pt);
   background(255);
@@ -60,11 +83,12 @@ function drawColorSip() {
     current_diff = img_diff_1;
   }
 
-  print(color_points.length + " " + img_diff_2 + " " + frameRate());
+  print(frameCount + " " + color_points.length + " " + img_diff_2 + " " + max_size + " " + frameRate());
   var log_entry = log_table.addRow();
   log_entry.setNum("frame_count", frameCount);
   log_entry.setNum("num_points", color_points.length);
   log_entry.setNum("img_diff", current_diff);
+  log_entry.setNum("max_pt_size", max_size);
 }
 
 function drawRandom() {
@@ -160,6 +184,15 @@ function ColorPoint() {
     this.color = pt_color;
   }
 
+  this.assignSize = function(pt_size) {
+    this.size = pt_size;
+  }
+
+  this.assignPosition = function(pt_x, pt_y) {
+    this.x = pt_x;
+    this.y = pt_y;
+  }
+
   this.assignRandomAttrs = function() {
     this.assignRandomPosition();
     this.assignRandomSize();
@@ -171,8 +204,8 @@ function ColorPoint() {
     this.y = random(img.height);     
   }
 
-  this.assignRandomSize = function() {
-    this.size = random(50);
+  this.assignRandomSize = function(min_size = 1, max_size = 50) {
+    this.size = random(min_size, max_size);
   }
 
   this.assignRandomColor = function() {
