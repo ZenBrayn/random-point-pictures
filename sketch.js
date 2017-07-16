@@ -15,15 +15,19 @@ function setup() {
   log_table.addColumn('frame_count');
   log_table.addColumn('num_points');
   log_table.addColumn('img_diff');
+
+  save_imgs_log = false;
 }
 
 //--- Main drawing function
 function draw() {
   drawColorSip();
 
-  if (color_points.length % 100 == 0) {
-    saveCanvas("pt_img-" + color_points.length, "png");
-    saveTable(log_table, "img_log.csv");
+  if (save_imgs_log) {
+    if (color_points.length % 100 == 0) {
+      saveCanvas("pt_img-" + color_points.length, "png");
+      saveTable(log_table, "img_log.csv");
+    }
   }
 }
 
