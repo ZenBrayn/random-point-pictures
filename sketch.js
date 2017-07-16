@@ -1,6 +1,6 @@
 
 function preload() {
-  img = loadImage("http://0.0.0.0:8000/test.jpg");
+  img = loadImage("http://138.68.31.61:3838/imgs/test.jpg");
 }
 
 function setup() {
