@@ -5,7 +5,6 @@ function preload() {
 
 function setup() {
   createCanvas(img.width, img.height);
-  print(img.width, img.height);
   img.loadPixels();
   color_points = [];
 
@@ -14,107 +13,114 @@ function setup() {
   log_table.addColumn('frame_count');
   log_table.addColumn('num_points');
   log_table.addColumn('img_diff');
+  log_table.addColumn('min_pt_size');
   log_table.addColumn('max_pt_size');
+  log_table.addColumn('frame_rate');
+
+  // logging params
+  save_imgs_log = true;
+  save_interval = 100;
+  intervals_processed = [];
 
   // drawing params
-  save_imgs_log = false;
-
   // points start off with the max size
-  init_max_size = 100;
+  init_max_size = 50;
   // don't allow points to get smaller than this
   min_allowable_size = 5;
   // if requested, decrement max size
   // every interval steps
   // by dec amount
-  do_size_dec = true;
+  do_size_dec = false;
   size_dec_interval = 2000;
   size_dec = 5;
+  // color mode
+  color_mode = "random";
+  // max points to draw
+  //max_pts = Infinity;
+  max_pts = 10000;
 }
 
 //--- Main drawing function
 function draw() {
-  drawColorSip(init_max_size, min_allowable_size, do_size_dec, size_dec_interval, size_dec);
+  drawItr(init_max_size, min_allowable_size, do_size_dec, size_dec_interval, size_dec, color_mode);
 
+  // Save images and logs
   if (save_imgs_log) {
-    if (color_points.length % 100 == 0) {
-      saveCanvas("pt_img-" + color_points.length, "png");
-      saveTable(log_table, "img_log.csv");
+    if (color_points.length > 0 && color_points.length % save_interval == 0) {
+      // Need to make sure we haven't already processed this particular
+      // interval point; can get multiples if a point is rejected on the
+      // next round of proceessing
+      if (intervals_processed.indexOf(color_points.length) === -1) {
+        saveCanvas("pt_img-" + color_points.length, "png");
+        intervals_processed.push(color_points.length);
+      }
     }
+  }
+
+  // Stop the process and write out the log file
+  // once the max number of points has been reached
+  if (color_points.lenght >= max_pts) {
+    saveTable(log_table, "img_log.csv");
+    noLoop();
   }
 }
 
-function drawColorSip(init_max_size, min_size, do_dec, dec_intr, dec_size) {
-  // // First display the current color point
-  // // state and compute the image difference
+function drawItr(init_max_size, min_size, do_dec, dec_intr, dec_size, color_mode) {
+  //--- Draw the current point set and compute img diff
   background(255);
   displayColorPoints();
   loadPixels();
   var img_diff_1 = computeImgDiff(img);
-  
-  // Now compute a new point and display
-  pt = new ColorPoint();
-  // Get a random position and size, but "sip"
-  // the color from the image
+
+  //--- Add a new point
+  var pt = new ColorPoint();
+  // random positions
   pt.assignRandomPosition();
 
-  // Set the intervals on the point sizes
-  // and decrement if requested
-  var max_size = init_max_size;
-  if (do_dec) {
-    max_size = init_max_size - Math.floor(frameCount / dec_intr) * dec_size;
-    if (max_size < min_size) {
-      max_size = min_size;
-    }
+  // random sizes (with decrementation if requested)
+  var min_pt_size = min_size;
+  var max_pt_size = init_max_size;
+  if (do_size_dec) {
+    max_pt_size = dec_max_pt_size(min_pt_size, init_max_size, dec_intr, dec_size)
   }
-  pt.assignRandomSize(min_size, max_size);
+  pt.assignRandomSize(min_pt_size, max_pt_size);
 
-  pt.assignColor(color(imgPixelColor(Math.round(pt.x), Math.round(pt.y), img)));
+  // assign color, depends on color_mode
+  if (color_mode === "random") {
+    pt.assignRandomColor();
+  } else if (color_mode === "sip") {
+    pt.assignColor(color(imgPixelColor(Math.round(pt.x), Math.round(pt.y), img)));
+  }
+
+  // Add the new point
   color_points.push(pt);
+
+  //--- Draw the updated point set and compute img diff
   background(255);
   displayColorPoints();
   loadPixels();
   var img_diff_2 = computeImgDiff(img);
 
+
   // reject the new point if the image difference increases
   var current_diff = img_diff_2;
-
   if (img_diff_2 > img_diff_1) {
     color_points.pop();
     current_diff = img_diff_1;
   }
 
-  print(frameCount + " " + color_points.length + " " + img_diff_2 + " " + max_size + " " + frameRate());
+  print(frameCount + " " + color_points.length + " " + current_diff + " " + min_pt_size + " " + max_pt_size + " " + frameRate());
+
   var log_entry = log_table.addRow();
   log_entry.setNum("frame_count", frameCount);
   log_entry.setNum("num_points", color_points.length);
   log_entry.setNum("img_diff", current_diff);
-  log_entry.setNum("max_pt_size", max_size);
+  log_entry.setNum("min_pt_size", min_pt_size);
+  log_entry.setNum("max_pt_size", max_pt_size);
+  log_entry.setNum("frame_rate", frameRate());
 }
 
-function drawRandom() {
-  // // First display the current color point
-  // // state and compute the image difference
-  background(255);
-  displayColorPoints();
-  loadPixels();
-  var img_diff_1 = computeImgDiff(img);
-  
-  // Now compute a new point and display
-  pt = new ColorPoint();
-  pt.assignRandomAttrs();
-  color_points.push(pt);
-  background(255);
-  displayColorPoints();
-  loadPixels();
-  var img_diff_2 = computeImgDiff(img);
 
-  // reject the new point if the image difference increases
-  if (img_diff_2 > img_diff_1) {
-    color_points.pop();
-  }
-
-  print(color_points.length + " " + img_diff_2 + " " + frameRate());
-}
 
 function computeImgDiff(inp_img) {
   var color_diff;
@@ -154,21 +160,15 @@ function imgPixelColor(x, y, inp_img) {
   return([inp_img.pixels[off], inp_img.pixels[off+1], inp_img.pixels[off+2], inp_img.pixels[off+3]]);
 }
 
-// function pixelColor(x, y, inp_img = null) {
-//   var off;
-//   var d;
+function dec_max_pt_size(min_size, init_max_size, dec_intr, dec_size) {
+  var max_size = init_max_size - Math.floor(frameCount / dec_intr) * dec_size;
+  if (max_size < min_size) {
+    max_size = min_size;
+  }
+  return(max_size);
+}
+  
 
-//   if (inp_img == null) {
-//     // off = (y * width + x) * pixelDensity() * 4;
-//     d = pixelDensity();
-//     off = 4 * ((y * d) * width * d + (x * d));
-//     return([pixels[off], pixels[off+1], pixels[off+2], pixels[off+3]]);
-//   } else {
-//     d = inp_img._pixelDensity;
-//     off = 4 * ((y * d) * inp_img.width * d + (x * d));
-//     return([inp_img.pixels[off], inp_img.pixels[off+1], inp_img.pixels[off+2], inp_img.pixels[off+3]]);
-//   }
-// }
 
 // color point class
 function ColorPoint() {
@@ -193,18 +193,18 @@ function ColorPoint() {
     this.y = pt_y;
   }
 
-  this.assignRandomAttrs = function() {
+  this.assignRandomAttrs = function(min_size = 5, max_size = 50) {
     this.assignRandomPosition();
-    this.assignRandomSize();
     this.assignRandomColor();
+    this.assignRandomSize(min_size, max_size);
   }
 
   this.assignRandomPosition = function() {
-    this.x = random(img.width);
-    this.y = random(img.height);     
+    this.x = random(width);
+    this.y = random(height);     
   }
 
-  this.assignRandomSize = function(min_size = 1, max_size = 50) {
+  this.assignRandomSize = function(min_size = 5, max_size = 50) {
     this.size = random(min_size, max_size);
   }
 
