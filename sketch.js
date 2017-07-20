@@ -37,7 +37,7 @@ function setup() {
   color_mode = "random";
   // max points to draw
   //max_pts = Infinity;
-  max_pts = 10000;
+  max_pts = 5000;
 }
 
 //--- Main drawing function
@@ -59,7 +59,7 @@ function draw() {
 
   // Stop the process and write out the log file
   // once the max number of points has been reached
-  if (color_points.lenght >= max_pts) {
+  if (color_points.length >= max_pts) {
     saveTable(log_table, "img_log.csv");
     noLoop();
   }
